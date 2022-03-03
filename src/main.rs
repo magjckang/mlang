@@ -16,6 +16,10 @@ enum Object {
 		head: *const Object,
 		tail: *const Object,
 	},
+	Expr {
+		def: *const Object,
+		env: *const Object,
+	},
 	Subr {
 		imp: PrimFun,
 		name: String,
@@ -52,6 +56,10 @@ impl Op {
 
 	fn pair(head: Self, tail: Self) -> Self {
 		Self::new(Object::Pair { head: head.0, tail: tail.0 })
+	}
+
+	fn expr(def: Self, env: Self) -> Self {
+		Self::new(Object::Expr { def: def.0, env: env.0 })
 	}
 
 	fn subr(imp: PrimFun, name: String, is_fixed: bool) -> Self {
@@ -93,6 +101,13 @@ impl Op {
 
 	fn is_subr(&self) -> bool {
 		matches!( self.as_ref(), Some(Object::Subr { .. }) )
+	}
+
+	fn get_long_unchecked(&self) -> isize {
+		match self.as_ref_unchecked() {
+			Object::Long(n) => *n,
+			_ => unsafe { core::hint::unreachable_unchecked() }
+		}
 	}
 
 	fn get_symbol_unchecked<'a>(&self) -> &'a String {
@@ -158,6 +173,12 @@ impl Debug for Op {
 					f.debug_struct("Pair")
 						.field("head", &Self(*head))
 						.field("tail", &Self(*tail))
+						.finish()
+				}
+				Object::Expr { def, env } => {
+					f.debug_struct("Expr")
+						.field("def", &Self(*def))
+						.field("env", &Self(*env))
 						.finish()
 				}
 				Object::Subr { name, .. } => {
@@ -228,8 +249,9 @@ fn main() {
 		global_var.set_tail_unchecked(GLOBALS)
 	}
 
-	let sub_routes: [(&str, PrimFun, bool); 2] = [
+	let sub_routes: [(&str, PrimFun, bool); 3] = [
 		("define", eval::subr_define, true),
+		("lambda", eval::subr_lambda, true),
 		("add", eval::subr_add, false),
 	];
 

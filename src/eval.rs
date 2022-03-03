@@ -5,7 +5,9 @@ use crate::GLOBALS;
 pub enum Error {
 	Undefined(Op),
 	CanNotApply(Op),
+	RequireLong(Op),
 	RequireSymbol(Op),
+	TooFewArgs,
 }
 
 pub fn eval(op: Op, env: Op) -> Result<Op, Error> {
@@ -43,6 +45,18 @@ fn apply(fun: Op, args: Op, env: Op) -> Result<Op, Error> {
 		Object::Subr { imp, .. } => {
 			imp(args, env)
 		}
+		Object::Expr { def, env } => {
+			let def: Op = def.into();
+			let env: Op = env.into();
+			let env = pairlis(def.get_head_unchecked(), args, env)?;
+			let mut body = def.get_tail_unchecked();
+			let mut result = Op::null();
+			while body.is_pair() {
+				result = eval(body.get_head_unchecked(), env)?;
+				body = body.get_tail_unchecked();
+			}
+			Ok(result)
+		}
 		_ => {
 			Err(Error::CanNotApply(fun))
 		}
@@ -71,6 +85,26 @@ pub fn define(name: Op, value: Op, env: Op) -> Op {
 	let env_tail = Op::pair(pair, cdr(env));
 	env.set_tail_unchecked(env_tail);
 	pair
+}
+
+fn pairlis(mut names: Op, mut values: Op, mut env: Op) -> Result<Op, Error> {
+	while names.is_pair() {
+		let name = names.get_head_unchecked();
+		if !name.is_symbol() {
+			return Err(Error::RequireSymbol(name))
+		}
+		if !values.is_pair() {
+			return Err(Error::TooFewArgs)
+		}
+		let value = values.get_head_unchecked();
+		env = Op::pair(Op::pair(name, value), env);
+		names = names.get_tail_unchecked();
+		values = values.get_tail_unchecked();
+	}
+	if names.is_symbol() {
+		env = Op::pair(Op::pair(names, values), env);
+	}
+	Ok(env)
 }
 
 fn assoc(key: Op, env: Op) -> Op {
@@ -103,6 +137,25 @@ pub fn subr_define(args: Op, env: Op) -> Result<Op, Error> {
 	Ok(value)
 }
 
-pub fn subr_add(_args: Op, _env: Op) -> Result<Op, Error> {
-	Ok(Op::long(42))
+pub fn subr_lambda(args: Op, env: Op) -> Result<Op, Error> {
+	Ok(Op::expr(args, env))
+}
+
+pub fn subr_add(args: Op, _env: Op) -> Result<Op, Error> {
+	if !args.is_pair() {
+		return Err(Error::TooFewArgs)
+	}
+	let lhs = args.get_head_unchecked();
+	let args = args.get_tail_unchecked();
+	if !args.is_pair() {
+		return Err(Error::TooFewArgs)
+	}
+	let rhs = args.get_head_unchecked();
+	if !lhs.is_long() {
+		return Err(Error::RequireLong(lhs))
+	}
+	if !rhs.is_long() {
+		return Err(Error::RequireLong(rhs))
+	}
+	Ok(Op::long(lhs.get_long_unchecked() + rhs.get_long_unchecked()))
 }
