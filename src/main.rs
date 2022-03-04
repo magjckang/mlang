@@ -99,6 +99,10 @@ impl Op {
 		matches!( self.as_ref(), Some(Object::Pair { .. }) )
 	}
 
+	fn is_expr(&self) -> bool {
+		matches!( self.as_ref(), Some(Object::Expr { .. }) )
+	}
+
 	fn is_subr(&self) -> bool {
 		matches!( self.as_ref(), Some(Object::Subr { .. }) )
 	}
@@ -141,6 +145,20 @@ impl Op {
 	fn set_tail_unchecked(&self, op: Op) {
 		match self.as_mut_unchecked() {
 			Object::Pair { tail, .. } => { *tail = op.0 }
+			_ => unsafe { core::hint::unreachable_unchecked() }
+		}
+	}
+
+	fn get_env_unchecked(&self) -> Self {
+		match self.as_ref_unchecked() {
+			Object::Expr { env, .. } => { Self(*env) }
+			_ => unsafe { core::hint::unreachable_unchecked() }
+		}
+	}
+
+	fn set_env_unchecked(&self, op: Op) {
+		match self.as_mut_unchecked() {
+			Object::Expr { env, .. } => { *env = op.0 }
 			_ => unsafe { core::hint::unreachable_unchecked() }
 		}
 	}
@@ -249,7 +267,7 @@ fn main() {
 		global_var.set_tail_unchecked(GLOBALS)
 	}
 
-	let sub_routes: [(&str, PrimFun, bool); 13] = [
+	let sub_routes: [(&str, PrimFun, bool); 14] = [
 		("define", eval::subr_define, true),
 		("lambda", eval::subr_lambda, true),
 		("lambda_lambda", eval::subr_lambda_lambda, true),
@@ -263,6 +281,7 @@ fn main() {
 		("list_prepend", eval::subr_list_prepend, false),
 		("list_count", eval::subr_list_count, false),
 		("list_index", eval::subr_list_index, false),
+		("list_map", eval::subr_list_map, false),
 	];
 
 	for (name, fun, is_fixed) in sub_routes {

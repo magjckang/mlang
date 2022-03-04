@@ -8,6 +8,7 @@ pub enum Error {
 	RequireLong(Op),
 	RequireSymbol(Op),
 	RequirePair(Op),
+	RequireExpr(Op),
 	TooFewArgs,
 }
 
@@ -69,13 +70,7 @@ fn apply(fun: Op, args: Op, env: Op) -> Result<Op, Error> {
 			let def: Op = def.into();
 			let env: Op = env.into();
 			let env = pairlis(def.get_head_unchecked(), args, env)?;
-			let mut body = def.get_tail_unchecked();
-			let mut result = Op::null();
-			while body.is_pair() {
-				result = eval(body.get_head_unchecked(), env)?;
-				body = body.get_tail_unchecked();
-			}
-			Ok(result)
+			eval(def.get_tail_unchecked(), env)
 		}
 		_ => {
 			Err(Error::CanNotApply(fun))
@@ -182,10 +177,10 @@ pub fn subr_define(args: Op, env: Op) -> Result<Op, Error> {
 pub fn subr_lambda(args: Op, env: Op) -> Result<Op, Error> {
 	check_args! {
 		args,
-		let _symbols
-		let _body
+		let symbols
+		let body
 	}
-	Ok(Op::expr(args, env))
+	Ok(Op::expr(cons(symbols, body), env))
 }
 
 // lambda that omit the arg list
@@ -213,8 +208,24 @@ pub fn subr_set_scope(args: Op, env: Op) -> Result<Op, Error> {
 	subr_define(args, env)
 }
 
-pub fn subr_get_scope(args: Op, _env: Op) -> Result<Op, Error> {
-	Ok(car(args))
+pub fn subr_get_scope(args: Op, env: Op) -> Result<Op, Error> {
+	check_args! {
+		args,
+		let name
+	};
+	if name.is_long() {
+		let n = name.get_long_unchecked();
+		let mut env = env;
+		while !env.is_null() {
+			let pair = car(env);
+			let key = car(pair);
+			if key.is_long() && key.get_long_unchecked() == n {
+				return Ok(cdr(pair))
+			}
+			env = cdr(env);
+		}
+	}
+	Ok(name)
 }
 
 pub fn subr_add(args: Op, _env: Op) -> Result<Op, Error> {
@@ -328,4 +339,38 @@ pub fn subr_list_index(args: Op, _env: Op) -> Result<Op, Error> {
 		tail = maybe_tail;
 	}
 	Ok(tail.get_head_unchecked())
+}
+
+pub fn subr_list_map(args: Op, _env: Op) -> Result<Op, Error> {
+	check_args! {
+		args,
+		let list, is_pair, RequirePair
+		let fun, is_expr, RequireExpr // TODO: allow Subr
+	};
+	let new_list = cons(Op::null(), Op::null());
+	if list.get_head_unchecked().is_null() {
+		return Ok(new_list)
+	}
+	let mut tail = list;
+	let mut new_tail = new_list;
+	loop {
+		let elem = tail.get_head_unchecked();
+		// call closure with modified context then restore it.
+		let original_env = fun.get_env_unchecked();
+		fun.set_env_unchecked(cons(cons(Op::long(0), elem), original_env));
+		let new_elem = apply(fun, cons(elem, Op::null()), Op::null())?;
+		fun.set_env_unchecked(original_env);
+		new_tail.set_head_unchecked(new_elem);
+		tail = tail.get_tail_unchecked();
+		if tail.is_null() {
+			break
+		}
+		if !tail.is_pair() {
+			return Err(Error::RequirePair(tail))
+		}
+		let tmp = cons(Op::null(), Op::null());
+		new_tail.set_tail_unchecked(tmp);
+		new_tail = tmp;
+	}
+	Ok(new_list)
 }
