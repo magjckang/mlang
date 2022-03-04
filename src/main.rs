@@ -249,11 +249,14 @@ fn main() {
 		global_var.set_tail_unchecked(GLOBALS)
 	}
 
-	let sub_routes: [(&str, PrimFun, bool); 10] = [
+	let sub_routes: [(&str, PrimFun, bool); 13] = [
 		("define", eval::subr_define, true),
 		("lambda", eval::subr_lambda, true),
+		("lambda_lambda", eval::subr_lambda_lambda, true),
 		("set_scope", eval::subr_set_scope, true),
 		("get_scope", eval::subr_get_scope, false),
+		("apply", eval::subr_apply, false),
+		("lambda_apply", eval::subr_apply, false),
 		("add", eval::subr_add, false),
 		("new_list", eval::subr_new_list, false),
 		("list_append", eval::subr_list_append, false),

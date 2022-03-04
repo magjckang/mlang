@@ -27,10 +27,26 @@ pub fn eval(op: Op, env: Op) -> Result<Op, Error> {
 			}
 			Object::Pair { head, tail } => {
 				let head = eval(head.into(), env)?;
-				if head.is_subr() && head.get_is_fixed_unchecked() {
-					apply(head, tail.into(), env)
+				let (should_apply, should_eval_tail) = match head.as_ref() {
+					Some(Object::Subr { is_fixed, .. }) => {
+						(true, !*is_fixed)
+					}
+					Some(Object::Expr { .. }) => {
+						(true, true)
+					}
+					_ => {
+						(false, true)
+					}
+				};
+				let tail = if should_eval_tail {
+					evlis(tail.into(), env)?
 				} else {
-					apply(head, evlis(tail.into(), env)?, env)
+					tail.into()
+				};
+				if should_apply {
+					apply(head, tail, env)
+				} else {
+					Ok(cons(head, tail))
 				}
 			}
 			_ => {
@@ -42,6 +58,9 @@ pub fn eval(op: Op, env: Op) -> Result<Op, Error> {
 
 fn apply(fun: Op, args: Op, env: Op) -> Result<Op, Error> {
 	println!("APPLY {:#?} TO {:#?} IN {:#?}", fun, args, env);
+	if fun.is_null() {
+		return Err(Error::CanNotApply(fun))
+	}
 	match fun.as_ref_unchecked() {
 		Object::Subr { imp, .. } => {
 			imp(args, env)
@@ -144,7 +163,7 @@ macro_rules! check_args {
 		} )?
 	};
 	($args:ident, let $name:ident $(, $check:ident, $error:ident)? $(let $r_name:ident $(, $r_check:ident, $r_error:ident)?)+) => {
-		check_args!($args, let $name, $( $check, $error )? );
+		check_args!($args, let $name $(, $check, $error )? );
 		let $args = $args.get_tail_unchecked();
 		check_args!($args, $( let $r_name $(, $r_check, $r_error )? )+);
 	};
@@ -161,7 +180,33 @@ pub fn subr_define(args: Op, env: Op) -> Result<Op, Error> {
 }
 
 pub fn subr_lambda(args: Op, env: Op) -> Result<Op, Error> {
+	check_args! {
+		args,
+		let _symbols
+		let _body
+	}
 	Ok(Op::expr(args, env))
+}
+
+// lambda that omit the arg list
+pub fn subr_lambda_lambda(args: Op, env: Op) -> Result<Op, Error> {
+	check_args! {
+		args,
+		let body
+	}
+	Ok(Op::expr(cons(Op::null(), body), env))
+}
+
+pub fn subr_apply(args: Op, env: Op) -> Result<Op, Error> {
+	let fun = car(args);
+	let args = cdr(args);
+	let fun_args = car(args);
+	let args = cdr(args);
+	let mut ctx = car(args);
+	if ctx.is_null() {
+		ctx = env;
+	}
+	apply(fun, fun_args, ctx)
 }
 
 pub fn subr_set_scope(args: Op, env: Op) -> Result<Op, Error> {
