@@ -13,7 +13,7 @@ pub enum Error {
 }
 
 pub fn eval(op: Op, env: Op) -> Result<Op, Error> {
-	println!("EVAL {:#?} IN {:#?}", op, env);
+	println!("EVAL {:?} IN {:?}", op, env);
 	match op.as_ref() {
 		None => {
 			Ok(Op::null())
@@ -58,7 +58,7 @@ pub fn eval(op: Op, env: Op) -> Result<Op, Error> {
 }
 
 fn apply(fun: Op, args: Op, env: Op) -> Result<Op, Error> {
-	println!("APPLY {:#?} TO {:#?} IN {:#?}", fun, args, env);
+	println!("APPLY {:?} TO {:?} IN {:?}", fun, args, env);
 	if fun.is_null() {
 		return Err(Error::CanNotApply(fun))
 	}

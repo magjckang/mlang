@@ -182,26 +182,107 @@ impl Debug for Op {
 			}
 			Some(obj) => match obj {
 				Object::Long(n) => {
-					write!(f, "Long {:?}", n)
+					if f.alternate() {
+						write!(f, "Long {:?}", n)
+					} else {
+						write!(f, "{n}")
+					}
 				}
 				Object::Symbol { s } => {
-					write!(f, "Symbol {:?}", s)
+					if f.alternate() {
+						write!(f, "Symbol {:?}", s)
+					} else {
+						write!(f, "{s}")
+					}
 				}
 				Object::Pair { head, tail } => {
-					f.debug_struct("Pair")
-						.field("head", &Self(*head))
-						.field("tail", &Self(*tail))
-						.finish()
+					if f.alternate() {
+						f.debug_struct("Pair")
+							.field("head", &Self(*head))
+							.field("tail", &Self(*tail))
+							.finish()
+					} else {
+						let mut head: Op = head.into();
+						let mut tail: Op = tail.into();
+						write!(f, "(")?;
+						loop {
+							write!(f, "{:?}", head)?;
+							if !tail.is_pair() {
+								break
+							}
+							if tail == unsafe { GLOBALS } {
+								break
+							}
+							head = tail.get_head_unchecked();
+							tail = tail.get_tail_unchecked();
+							write!(f, " ")?;
+						}
+						if !tail.is_null() {
+							write!(f, " . {:?}", tail)?;
+						}
+						write!(f, ")")
+					}
 				}
 				Object::Expr { def, env } => {
-					f.debug_struct("Expr")
-						.field("def", &Self(*def))
-						.field("env", &Self(*env))
-						.finish()
+					if f.alternate() {
+						f.debug_struct("Expr")
+							.field("def", &Self(*def))
+							.field("env", &Self(*env))
+							.finish()
+					} else {
+						write!(f, "ƒ({})", &Self::from(def).get_head_unchecked())
+					}
 				}
 				Object::Subr { name, .. } => {
 					write!(f, "Subr {:?}", name)
 				}
+			}
+		}
+	}
+}
+
+impl fmt::Display for Op {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		if *self == unsafe { GLOBALS } {
+			return write!(f, "<globals>")
+		}
+		if self.is_null() {
+			return write!(f, "nil")
+		}
+		match self.as_ref_unchecked() {
+			Object::Long(n) => {
+				write!(f, "{n}")
+			}
+			Object::Symbol { s } => {
+				write!(f, "'{s}'")
+			}
+			Object::Pair { head, tail } => {
+				let mut head: Op = head.into();
+				let mut tail: Op = tail.into();
+				write!(f, "[")?;
+				loop {
+					write!(f, "{}", head)?;
+					if !tail.is_pair() {
+						break
+					}
+					if tail == unsafe { GLOBALS } {
+						break
+					}
+					head = tail.get_head_unchecked();
+					tail = tail.get_tail_unchecked();
+					write!(f, ", ")?;
+				}
+				if !tail.is_null() {
+					write!(f, " . {}", tail)?;
+				}
+				write!(f, "]")
+			}
+			Object::Expr { def, .. } => {
+				let def: Op = def.into();
+				write!(f, "{}", def.get_tail_unchecked())
+			}
+			Object::Subr { name, .. } => {
+				write!(f, "<subr {name}>")
 			}
 		}
 	}
@@ -247,7 +328,7 @@ fn repl(s: &str) {
 		Ok(op) => {
 			match eval::eval(op, unsafe { GLOBALS }) {
 				Ok(op) => {
-					println!(" => {:#?}", op);
+					println!(" => {}", op);
 				}
 				Err(e) => {
 					println!("{:?}", e);
