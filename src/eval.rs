@@ -7,6 +7,7 @@ pub enum Error {
 	CanNotApply(Op),
 	RequireLong(Op),
 	RequireSymbol(Op),
+	RequirePair(Op),
 	TooFewArgs,
 }
 
@@ -77,6 +78,11 @@ fn cdr(op: Op) -> Op {
 	}
 }
 
+#[inline]
+fn cons(head: Op, tail: Op) -> Op {
+	Op::pair(head, tail)
+}
+
 fn caar(op: Op) -> Op { car(car(op)) }
 fn cadr(op: Op) -> Op { car(cdr(op)) }
 
@@ -127,6 +133,23 @@ fn evlis(op: Op, env: Op) -> Result<Op, Error> {
 	Ok(Op::pair(head, tail))
 }
 
+macro_rules! check_args {
+	($args:ident, let $name:ident $(, $check:ident, $error:ident)?) => {
+		if !$args.is_pair() {
+			return Err(Error::TooFewArgs)
+		}
+		let $name = $args.get_head_unchecked();
+		$( if !$name.$check() {
+			return Err(Error::$error($name))
+		} )?
+	};
+	($args:ident, let $name:ident $(, $check:ident, $error:ident)? $(let $r_name:ident $(, $r_check:ident, $r_error:ident)?)+) => {
+		check_args!($args, let $name, $( $check, $error )? );
+		let $args = $args.get_tail_unchecked();
+		check_args!($args, $( let $r_name $(, $r_check, $r_error )? )+);
+	};
+}
+
 pub fn subr_define(args: Op, env: Op) -> Result<Op, Error> {
 	let name = car(args);
 	if !name.is_symbol() {
@@ -139,6 +162,14 @@ pub fn subr_define(args: Op, env: Op) -> Result<Op, Error> {
 
 pub fn subr_lambda(args: Op, env: Op) -> Result<Op, Error> {
 	Ok(Op::expr(args, env))
+}
+
+pub fn subr_set_scope(args: Op, env: Op) -> Result<Op, Error> {
+	subr_define(args, env)
+}
+
+pub fn subr_get_scope(args: Op, _env: Op) -> Result<Op, Error> {
+	Ok(car(args))
 }
 
 pub fn subr_add(args: Op, _env: Op) -> Result<Op, Error> {
@@ -158,4 +189,98 @@ pub fn subr_add(args: Op, _env: Op) -> Result<Op, Error> {
 		return Err(Error::RequireLong(rhs))
 	}
 	Ok(Op::long(lhs.get_long_unchecked() + rhs.get_long_unchecked()))
+}
+
+pub fn subr_new_list(_args: Op, _env: Op) -> Result<Op, Error> {
+	Ok(Op::pair(Op::null(), Op::null()))
+}
+
+pub fn subr_list_append(args: Op, _env: Op) -> Result<Op, Error> {
+	check_args! {
+		args,
+		let list, is_pair, RequirePair
+		let elem
+	};
+	if list.get_head_unchecked().is_null() {
+		list.set_head_unchecked(elem);
+		return Ok(list)
+	}
+	let mut tail = list;
+	loop {
+		let maybe_tail = tail.get_tail_unchecked();
+		if maybe_tail.is_null() {
+			tail.set_tail_unchecked(cons(elem, Op::null()));
+			return Ok(list)
+		}
+		if !maybe_tail.is_pair() {
+			return Err(Error::RequirePair(tail))
+		}
+		tail = maybe_tail
+	}
+}
+
+pub fn subr_list_prepend(args: Op, _env: Op) -> Result<Op, Error> {
+	check_args! {
+		args,
+		let list, is_pair, RequirePair
+		let elem
+	}
+	if list.get_head_unchecked().is_null() {
+		list.set_head_unchecked(elem);
+		return Ok(list)
+	}
+	let head = list.get_head_unchecked();
+	let tail = list.get_tail_unchecked();
+	list.set_head_unchecked(elem);
+	list.set_tail_unchecked(cons(head, tail));
+	Ok(list)
+}
+
+pub fn subr_list_count(args: Op, _env: Op) -> Result<Op, Error> {
+	check_args! {
+		args,
+		let list, is_pair, RequirePair
+	}
+	if list.get_head_unchecked().is_null() {
+		return Ok(Op::long(0))
+	}
+	let mut tail = list;
+	let mut count = 1;
+	loop {
+		let maybe_tail = tail.get_tail_unchecked();
+		if maybe_tail.is_null() {
+			break
+		}
+		if !maybe_tail.is_pair() {
+			return Err(Error::RequirePair(maybe_tail))
+		}
+		count += 1;
+		tail = maybe_tail;
+	}
+	Ok(Op::long(count))
+}
+
+pub fn subr_list_index(args: Op, _env: Op) -> Result<Op, Error> {
+	check_args! {
+		args,
+		let list, is_pair, RequirePair
+		let index, is_long, RequireLong
+	};
+	let mut tail = list;
+	let mut index = index.get_long_unchecked();
+	loop {
+		if index == 0 {
+			break
+		}
+		let maybe_tail = tail.get_tail_unchecked();
+		if maybe_tail.is_null() {
+			return Ok(Op::null())
+		}
+		if !maybe_tail.is_pair() {
+			return Err(Error::RequirePair(maybe_tail))
+		}
+		index -= 1;
+		tail = maybe_tail;
+	}
+	Ok(tail.get_head_unchecked())
 }
