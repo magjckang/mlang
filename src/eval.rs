@@ -93,7 +93,7 @@ fn cdr(op: Op) -> Op {
 }
 
 #[inline]
-fn cons(head: Op, tail: Op) -> Op {
+pub fn cons(head: Op, tail: Op) -> Op {
 	Op::pair(head, tail)
 }
 

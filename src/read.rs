@@ -1,3 +1,6 @@
+mod sugar;
+
+pub use sugar::SugarReader;
 use crate::{Op, intern};
 use core::iter::Peekable;
 use core::str::{Chars, FromStr};
@@ -6,136 +9,149 @@ use core::str::{Chars, FromStr};
 pub enum Error {
 	Continue,
 	Eof,
-	EndOfList,
+	Unexpected(char),
 	UnexpectedEof,
 	UnsupportedChar(char),
 }
 
-pub fn read(chars: &mut Peekable<Chars<'_>>) -> Result<Op, Error> {
-	while let Some(c) = chars.peek() {
-		match c {
-			' ' | ',' | '\r' | '\n' => {
-				chars.next();
-				continue
+pub trait Reader<'a> {
+	fn chars(&mut self) -> &mut Peekable<Chars<'a>>;
+
+	fn read_item(&mut self) -> Result<Op, Error>;
+
+	fn read(&mut self) -> Result<Op, Error> {
+		self.read_item()
+	}
+
+	fn read_list(&mut self, delimiter: char) -> Result<Op, Error> {
+		let mut head = Op::null();
+		let mut tail = head;
+		loop {
+			match self.read_item() {
+				Ok(op) => {
+					let op = Op::pair(op, Op::null());
+					if head.is_null() {
+						head = op;
+					} else {
+						tail.set_tail_unchecked(op);
+					}
+					tail = op;
+				}
+				Err(Error::Unexpected(',')) => {
+					self.chars().next();
+				}
+				Err(Error::Unexpected(c)) if c == delimiter => {
+					self.chars().next();
+					break
+				}
+				Err(Error::Eof) => return Err(Error::UnexpectedEof),
+				e @ _ => return e
+			} 
+		}
+		if head.is_null() {
+			head = Op::pair(Op::null(), Op::null());
+		}
+		Ok(head)
+	}
+
+	fn read_number(&mut self, lead: Option<char>) -> Result<Op, Error> {
+		let chars = self.chars();
+		let mut s = String::new();
+		if let Some(c) = lead {
+			s.push(c);
+		} else {
+			match *chars.peek().ok_or(Error::UnexpectedEof)? {
+				c @ '0'..='9' => {
+					chars.next();
+					s.push(c);
+				}
+				_ => return Err(Error::Continue)
 			}
-			'(' => {
-				chars.next();
-				return read_list(chars, ')')
-			}
-			')' => {
-				return Err(Error::EndOfList)
-			}
-			'[' => {
-				chars.next();
-				return read_list(chars, ']')
-			}
-			']' => {
-				return Err(Error::EndOfList)
-			}
-			'0'..='9' => {
-				let mut input = String::new();
-				while let Some(c) = chars.peek() {
+		}
+		while let Some(c) = chars.next_if(|&c| matches!(c, '0'..='9')) {
+			s.push(c);
+		}
+		Ok(Op::long(isize::from_str(&s[..]).unwrap()))
+	}
+
+	fn read_symbol(&mut self, quoted: bool) -> Result<Op, Error> {
+		let chars = self.chars();
+		match *chars.peek().ok_or(Error::UnexpectedEof)? {
+			'0'..='9' | 'A'..='Z' | 'a'..='z' | '_' => {
+				let mut s = String::new();
+				s.push(unsafe { chars.next().unwrap_unchecked() });
+				while let Some(c) = chars.peek().cloned() {
 					match c {
-						'0'..='9' => {
-							input.push(unsafe { chars.next().unwrap_unchecked() })
+						'0'..='9' | 'A'..='Z' | 'a'..='z' | '_' => {
+							chars.next();
+							s.push(c);
+						}
+						'\'' => {
+							if quoted {
+								chars.next();
+							}
+							break
 						}
 						_ => {
-							return Ok(Op::long(isize::from_str(&input[..]).unwrap()))
+							if quoted {
+								chars.next();
+								return Err(Error::UnsupportedChar(c))
+							}
+							break
 						}
 					}
 				}
+				Ok(intern(s))
 			}
-			'\'' => {
-				chars.next();
-				return read_symbol(chars, true)
-			}
-			_ => {
-				match read_symbol(chars, false) {
-					Err(Error::Continue) => {}
-					x @ _ => return x
-				}
-			}
+			c @ _ => Err(if quoted { Error::UnsupportedChar(c) } else { Error::Unexpected(c) })
 		}
 	}
-	Err(Error::Eof)
-}
 
-fn read_symbol(chars: &mut Peekable<Chars<'_>>, quoted: bool) -> Result<Op, Error> {
-	let c = unsafe { chars.next().unwrap_unchecked() };
-	match c {
-		'A'..='Z' | 'a'..='z' | '_' => {
-			let mut s = String::new();
-			s.push(c);
-			while let Some(c) = chars.peek() {
-				match c {
-					'0'..='9' | 'A'..='Z' | 'a'..='z' | '_' => {
-						s.push(unsafe { chars.next().unwrap_unchecked() })
-					}
-					'\'' => {
-						if quoted {
-							chars.next();
-							return Ok(intern(s))
-						}
-						break
-					}
-					_ => {
-						if quoted {
-							let c = unsafe { chars.next().unwrap_unchecked() };
-							return Err(Error::UnsupportedChar(c))
-						}
-						break
-					}
-				}
-			}
-			Ok(intern(s))
-		}
-		_ => {
-			if quoted {
-				return Err(Error::UnsupportedChar(c))
-			}
-			Err(Error::Continue)
-		}
+	fn skip_spaces(&mut self) {
+		while self.chars().next_if(char::is_ascii_whitespace).is_some() {}
 	}
 }
 
-fn read_list(chars: &mut Peekable<Chars<'_>>, delimiter: char) -> Result<Op, Error> {
-	let mut head = Op::null();
-	let mut tail: Op;
-	match read(chars) {
-		Ok(op) => {
-			head = Op::pair(op, Op::null());
-			tail = head;
-			loop {
-				match read(chars) {
-					Ok(op) => {
-						let op = Op::pair(op, Op::null());
-						tail.set_tail_unchecked(op);
-						tail = op;
-					}
-					Err(Error::EndOfList) => {
-						break
-					}
-					Err(Error::Eof) => {
-						return Err(Error::UnexpectedEof)
-					}
-					r @ _ => {
-						return r
-					}
+pub struct BaseReader<'a> {
+	chars: Peekable<Chars<'a>>
+}
+
+impl<'a> BaseReader<'a> {
+	pub fn new(input: &'a str) -> Self {
+		Self { chars: input.chars().peekable() }
+	}
+}
+
+impl<'a> Reader<'a> for BaseReader<'a> {
+	#[inline]
+	fn chars(& mut self) -> & mut Peekable<Chars<'a>> {
+		&mut self.chars
+	}
+
+	fn read_item(&mut self) -> Result<Op, Error> {
+		self.skip_spaces();
+		loop {
+			match *self.chars.peek().ok_or(Error::Eof)? {
+				'(' => {
+					self.chars.next();
+					return self.read_list(')')
+				}
+				'[' => {
+					self.chars.next();
+					return self.read_list(']')
+				}
+				c @ '0'..='9' => {
+					self.chars.next();
+					return self.read_number(Some(c));
+				}
+				'\'' => {
+					self.chars.next();
+					return self.read_symbol(true)
+				}
+				_ => {
+					return self.read_symbol(false)
 				}
 			}
 		}
-		Err(Error::Eof) => {}
-		Err(err @ _) => {
-			return Err(err)
-		}
 	}
-	match chars.next() {
-		None => return Err(Error::UnexpectedEof),
-		Some(c) => {
-			if c != delimiter {
-				return Err(Error::UnexpectedEof)
-			}
-		}
-	}
-	Ok(head)
 }

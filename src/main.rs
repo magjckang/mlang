@@ -2,6 +2,7 @@ mod read;
 mod eval;
 
 use eval::{Error as EvalError};
+use read::{Reader as _, Error as ParseError, BaseReader, SugarReader};
 use core::cell::RefCell;
 use core::fmt::{self, Debug};
 use core::ptr;
@@ -322,21 +323,24 @@ fn intern(s: String) -> Op {
 }
 
 fn repl(s: &str) {
-	let mut chars = s.chars().peekable();
-
-	match read::read(&mut chars) {
-		Ok(op) => {
-			match eval::eval(op, unsafe { GLOBALS }) {
-				Ok(op) => {
-					println!(" => {}", op);
-				}
-				Err(e) => {
-					println!("{:?}", e);
+	// let mut reader = BaseReader::new(s);
+	let mut reader = SugarReader::new(s);
+	loop {
+		match reader.read() {
+			Ok(op) => {
+				match eval::eval(op, unsafe { GLOBALS }) {
+					Ok(op) => {
+						println!(" => {}", op);
+					}
+					Err(e) => {
+						println!("{:?}", e);
+					}
 				}
 			}
-		}
-		Err(err) => {
-			println!("{:?}", err);
+			Err(ParseError::Eof) => break,
+			Err(err) => {
+				println!("ParseError {:?}", err);
+			}
 		}
 	}
 }
