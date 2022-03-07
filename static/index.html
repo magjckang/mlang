@@ -1,0 +1,151 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>mlang</title>
+    <style type="text/css">
+      :root {
+        --color: #000;
+        --bg-color: #fff;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont;
+        color: var(--color);
+        background: var(--bg-color);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --color: rgb(205, 212, 223);
+          --bg-color: rgb(41, 41, 48);
+        }
+      }
+      #display {
+        font-family: monospace;
+        font-size: 18px;
+      }
+      .evaluated {
+        font-style: italic;
+      }
+      .error {
+        color: rgb(252, 33, 37);
+      }
+      .panel {
+        position: sticky;
+        bottom: 0px;
+        padding: 8px 0;
+        background: var(--bg-color);
+      }
+      .panel > :not(:first-child) {
+        margin-top: 8px;
+      }
+      textarea {
+        box-sizing: border-box;
+        width: 640px;
+        height: 320px;
+        max-width: calc(100vw - 16px);
+        font-family: monospace;
+        font-size: 16px;
+        color: inherit;
+        border: 1px solid #ccc;
+        background: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="display"></div>
+    <div class="panel">
+      <textarea id="input" autofocus></textarea>
+      <div id="parseError" class="error"></div>
+      <div>
+        <button id="button">Run (⌘ + Enter)</button>
+        <input id="sugar-syntax" type="checkbox">
+        <label for="sugar-syntax">Sugar syntax</label>
+      </div>
+    </div>
+    <script type="module">
+import init, { read_and_eval, getParseResult, getEvalResult, getParseError, getEvalError } from "./main.js";
+
+await init();
+
+const displayElem = document.getElementById('display');
+const inputElem = document.getElementById('input');
+const buttonElem = document.getElementById('button');
+const sugarSyntaxToggle = document.getElementById("sugar-syntax");
+const parseErrorElem = document.getElementById('parseError');
+
+function run() {
+  read_and_eval(inputElem.value, sugarSyntaxToggle.checked);
+
+  let parseError = getParseError();
+
+  while (parseErrorElem.firstChild) {
+    parseErrorElem.removeChild(parseErrorElem.firstChild);
+  }
+
+  if (parseError) {
+    parseErrorElem.appendChild(document.createTextNode(parseError));
+    return
+  }
+
+  let parseResults = getParseResult().split("\n").filter(Boolean);
+  let evalResults = getEvalResult().split("\n").filter(Boolean);
+  let evalError = getEvalError();
+
+  if (!evalError.length) {
+    inputElem.value = "";
+  }
+
+  if (displayElem.lastChild && displayElem.lastChild.classList.contains("error")) {
+    displayElem.removeChild(displayElem.lastChild);
+  }
+
+  while (parseResults.length || evalResults.length) {
+    printLine(parseResults.shift(), false, false);
+    printLine(evalResults.shift(), true, false);
+    printLine(evalError, true, true);
+  }
+
+  window.scrollTo({
+    top: 9999,
+    left: 0,
+    behavior: 'smooth'
+  });
+}
+
+function printLine(text, isEval, isError) {
+  if (!text) return;
+  const p = document.createElement("p");
+  if (isEval) {
+    p.classList.add(isEval ? "evaluated" : "source");
+    if (isError) {
+      p.classList.add("error");
+    }
+  }
+  p.appendChild(document.createTextNode(text));
+  displayElem.appendChild(p);
+}
+
+inputElem.onkeydown = (e) => {
+  if (e.key === "Enter" && e.metaKey) {
+    run();
+  }
+};
+
+buttonElem.onclick = () => {
+  run();
+};
+
+if (!inputElem.value) {
+  inputElem.value =
+`$list = @[10, 11]
+
+list_append($list, 13)
+
+list_map($list, @-> {
+  add($0, 3)
+})`;
+}
+    </script>
+  </body>
+</html>

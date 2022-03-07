@@ -1,8 +1,8 @@
 mod read;
 mod eval;
 
-use eval::{Error as EvalError};
-use read::{Reader as _, Error as ParseError, BaseReader, SugarReader};
+pub use eval::{Error as EvalError};
+pub use read::{Reader, Error as ParseError, BaseReader, SugarReader};
 use core::cell::RefCell;
 use core::fmt::{self, Debug};
 use core::ptr;
@@ -322,30 +322,11 @@ fn intern(s: String) -> Op {
 	symbol
 }
 
-fn repl(s: &str) {
-	// let mut reader = BaseReader::new(s);
-	let mut reader = SugarReader::new(s);
-	loop {
-		match reader.read() {
-			Ok(op) => {
-				match eval::eval(op, unsafe { GLOBALS }) {
-					Ok(op) => {
-						println!(" => {}", op);
-					}
-					Err(e) => {
-						println!("{:?}", e);
-					}
-				}
-			}
-			Err(ParseError::Eof) => break,
-			Err(err) => {
-				println!("ParseError {:?}", err);
-			}
-		}
-	}
+pub fn eval(op: Op) -> Result<Op, EvalError> {
+	eval::eval(op, unsafe { GLOBALS })
 }
 
-fn main() {
+pub fn init() {
 	let global_var = Op::pair(intern("globals".into()), Op::null());
 	unsafe {
 		GLOBALS = Op::pair(global_var, GLOBALS);
@@ -372,22 +353,5 @@ fn main() {
 	for (name, fun, is_fixed) in sub_routes {
 		let subr = Op::subr(fun, name.into(), is_fixed);
 		eval::define(intern(name.into()), subr, unsafe { GLOBALS });
-	}
-
-	use std::io;
-
-	let stdin = io::stdin();
-	let mut input = String::new();
-
-	loop {
-		match stdin.read_line(&mut input) {
-			Ok(_) => {
-				repl(&input[..]);
-				input.clear();
-			}
-			Err(error) => {
-				println!("Read line error: {}", error);
-			}
-		}
 	}
 }
