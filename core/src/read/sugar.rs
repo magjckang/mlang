@@ -113,7 +113,7 @@ impl<'a> Reader<'a> for SugarReader<'a> {
 						Ok(list) => {
 							return Ok(cons(symbol, list))
 						}
-						Err(Error::Continue) => {}
+						Err(Error::Continue) => return Ok(symbol),
 						e @ _ => return e
 					}
 				}
