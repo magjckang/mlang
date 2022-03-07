@@ -243,7 +243,7 @@ pub fn subr_subtract(args: Op, _env: Op) -> Result<Op, Error> {
 		let lhs, is_long, RequireLong
 		let rhs, is_long, RequireLong
 	};
-	Ok(Op::long(lhs.get_long_unchecked() + rhs.get_long_unchecked()))
+	Ok(Op::long(lhs.get_long_unchecked() - rhs.get_long_unchecked()))
 }
 
 pub fn subr_mul(args: Op, _env: Op) -> Result<Op, Error> {
