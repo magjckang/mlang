@@ -9,3 +9,7 @@ build:
 	@cargo build --release --target $(TARGET)
 	@wasm-bindgen --out-dir static --out-name main --target web --no-typescript target/$(TARGET)/release/$(NAME).wasm
 .PHONY: build
+
+run:
+	@node ./serve.js static/
+.PHONY: run
