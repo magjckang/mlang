@@ -1,4 +1,4 @@
-use crate::{Object, Op};
+use crate::{Object, Op, nil, cons};
 use crate::GLOBALS;
 
 #[derive(Debug)]
@@ -16,7 +16,7 @@ pub fn eval(op: Op, env: Op) -> Result<Op, Error> {
 	println!("EVAL {:?} IN {:?}", op, env);
 	match op.as_ref() {
 		None => {
-			Ok(Op::null())
+			Ok(nil())
 		}
 		Some(object) => match object {
 			Object::Symbol { .. } => {
@@ -81,28 +81,23 @@ fn apply(fun: Op, args: Op, env: Op) -> Result<Op, Error> {
 fn car(op: Op) -> Op {
 	match op.as_ref() {
 		Some(Object::Pair { head, .. }) => Op(*head),
-		_ => Op::null()
+		_ => nil()
 	}
 }
 
 fn cdr(op: Op) -> Op {
 	match op.as_ref() {
 		Some(Object::Pair { tail, .. }) => Op(*tail),
-		_ => Op::null()
+		_ => nil()
 	}
-}
-
-#[inline]
-pub fn cons(head: Op, tail: Op) -> Op {
-	Op::pair(head, tail)
 }
 
 fn caar(op: Op) -> Op { car(car(op)) }
 fn cadr(op: Op) -> Op { car(cdr(op)) }
 
 pub fn define(name: Op, value: Op, env: Op) -> Op {
-	let pair = Op::pair(name, value);
-	let env_tail = Op::pair(pair, cdr(env));
+	let pair = cons(name, value);
+	let env_tail = cons(pair, cdr(env));
 	env.set_tail_unchecked(env_tail);
 	pair
 }
@@ -117,12 +112,12 @@ fn pairlis(mut names: Op, mut values: Op, mut env: Op) -> Result<Op, Error> {
 			return Err(Error::TooFewArgs)
 		}
 		let value = values.get_head_unchecked();
-		env = Op::pair(Op::pair(name, value), env);
+		env = cons(cons(name, value), env);
 		names = names.get_tail_unchecked();
 		values = values.get_tail_unchecked();
 	}
 	if names.is_symbol() {
-		env = Op::pair(Op::pair(names, values), env);
+		env = cons(cons(names, values), env);
 	}
 	Ok(env)
 }
@@ -133,18 +128,18 @@ fn assoc(key: Op, env: Op) -> Op {
 	}
 	let tail = cdr(env);
 	if tail.is_null() {
-		return Op::null()
+		return nil()
 	}
 	assoc(key, tail)
 }
 
 fn evlis(op: Op, env: Op) -> Result<Op, Error> {
 	if op.is_null() {
-		return Ok(Op::null())
+		return Ok(nil())
 	}
 	let head = eval(car(op), env)?;
 	let tail = evlis(cdr(op), env)?;
-	Ok(Op::pair(head, tail))
+	Ok(cons(head, tail))
 }
 
 macro_rules! check_args {
@@ -189,7 +184,7 @@ pub fn subr_lambda_lambda(args: Op, env: Op) -> Result<Op, Error> {
 		args,
 		let body
 	}
-	Ok(Op::expr(cons(Op::null(), body), env))
+	Ok(Op::expr(cons(nil(), body), env))
 }
 
 pub fn subr_apply(args: Op, env: Op) -> Result<Op, Error> {
@@ -265,7 +260,7 @@ pub fn subr_div(args: Op, _env: Op) -> Result<Op, Error> {
 }
 
 pub fn subr_new_list(_args: Op, _env: Op) -> Result<Op, Error> {
-	Ok(Op::pair(Op::null(), Op::null()))
+	Ok(cons(nil(), nil()))
 }
 
 pub fn subr_list_append(args: Op, _env: Op) -> Result<Op, Error> {
@@ -282,7 +277,7 @@ pub fn subr_list_append(args: Op, _env: Op) -> Result<Op, Error> {
 	loop {
 		let maybe_tail = tail.get_tail_unchecked();
 		if maybe_tail.is_null() {
-			tail.set_tail_unchecked(cons(elem, Op::null()));
+			tail.set_tail_unchecked(cons(elem, nil()));
 			return Ok(list)
 		}
 		if !maybe_tail.is_pair() {
@@ -347,7 +342,7 @@ pub fn subr_list_index(args: Op, _env: Op) -> Result<Op, Error> {
 		}
 		let maybe_tail = tail.get_tail_unchecked();
 		if maybe_tail.is_null() {
-			return Ok(Op::null())
+			return Ok(nil())
 		}
 		if !maybe_tail.is_pair() {
 			return Err(Error::RequirePair(maybe_tail))
@@ -364,7 +359,7 @@ pub fn subr_list_map(args: Op, _env: Op) -> Result<Op, Error> {
 		let list, is_pair, RequirePair
 		let fun, is_expr, RequireExpr // TODO: allow Subr
 	};
-	let new_list = cons(Op::null(), Op::null());
+	let new_list = cons(nil(), nil());
 	if list.get_head_unchecked().is_null() {
 		return Ok(new_list)
 	}
@@ -375,7 +370,7 @@ pub fn subr_list_map(args: Op, _env: Op) -> Result<Op, Error> {
 		// call closure with modified context then restore it.
 		let original_env = fun.get_env_unchecked();
 		fun.set_env_unchecked(cons(cons(Op::long(0), elem), original_env));
-		let new_elem = apply(fun, cons(elem, Op::null()), Op::null())?;
+		let new_elem = apply(fun, cons(elem, nil()), nil())?;
 		fun.set_env_unchecked(original_env);
 		new_tail.set_head_unchecked(new_elem);
 		tail = tail.get_tail_unchecked();
@@ -385,7 +380,7 @@ pub fn subr_list_map(args: Op, _env: Op) -> Result<Op, Error> {
 		if !tail.is_pair() {
 			return Err(Error::RequirePair(tail))
 		}
-		let tmp = cons(Op::null(), Op::null());
+		let tmp = cons(nil(), nil());
 		new_tail.set_tail_unchecked(tmp);
 		new_tail = tmp;
 	}

@@ -35,10 +35,6 @@ pub struct Op(*const Object);
 
 #[allow(unused)]
 impl Op {
-	const fn null() -> Self {
-		Self(ptr::null())
-	}
-
 	fn new(obj: Object) -> Self {
 		OBJECTS.with(|cell| {
 			let mut vec = cell.borrow_mut();
@@ -301,12 +297,22 @@ impl From<&*const Object> for Op {
 	}
 }
 
+#[inline]
+const fn nil() -> Op {
+	Op(ptr::null())
+}
+
+#[inline]
+fn cons(head: Op, tail: Op) -> Op {
+	Op::pair(head, tail)
+}
+
 thread_local! {
 	static OBJECTS: RefCell<Vec<Object>> = RefCell::new(Vec::with_capacity(10000));
 }
 
-static mut SYMBOLS: Op = Op::null();
-static mut GLOBALS: Op = Op::null();
+static mut SYMBOLS: Op = nil();
+static mut GLOBALS: Op = nil();
 
 fn intern(s: String) -> Op {
 	let mut list = unsafe { SYMBOLS };
@@ -318,7 +324,7 @@ fn intern(s: String) -> Op {
 		list = list.get_tail_unchecked();
 	}
 	let symbol = Op::symbol(s);
-	unsafe { SYMBOLS = Op::pair(symbol, SYMBOLS) }
+	unsafe { SYMBOLS = cons(symbol, SYMBOLS) }
 	symbol
 }
 
@@ -327,9 +333,9 @@ pub fn eval(op: Op) -> Result<Op, EvalError> {
 }
 
 pub fn init() {
-	let global_var = Op::pair(intern("globals".into()), Op::null());
+	let global_var = cons(intern("globals".into()), nil());
 	unsafe {
-		GLOBALS = Op::pair(global_var, GLOBALS);
+		GLOBALS = cons(global_var, GLOBALS);
 		global_var.set_tail_unchecked(GLOBALS)
 	}
 

@@ -1,6 +1,5 @@
 use super::{Reader, Error};
-use crate::{Op, intern};
-use crate::eval::cons;
+use crate::{Op, nil, cons, intern};
 use core::iter::Peekable;
 use core::str::Chars;
 
@@ -35,10 +34,10 @@ impl<'a> SugarReader<'a> {
 			Some('=') => {
 				self.chars.next();
 				let value = self.read_item()?;
-				Ok(cons(intern("set_scope".into()), cons(name, cons(value, Op::null()))))
+				Ok(cons(intern("set_scope".into()), cons(name, cons(value, nil()))))
 			}
 			_ => {
-				Ok(cons(intern("get_scope".into()), cons(name, Op::null())))
+				Ok(cons(intern("get_scope".into()), cons(name, nil())))
 			}
 		}
 	}
@@ -60,7 +59,7 @@ impl<'a> SugarReader<'a> {
 								if body.get_tail_unchecked().is_null() {
 									body = body.get_head_unchecked();
 								}
-								Ok(cons(intern("lambda_lambda".into()), cons(body, Op::null())))
+								Ok(cons(intern("lambda_lambda".into()), cons(body, nil())))
 							}
 							c @ _ => Err(Error::Unexpected(c))
 						}

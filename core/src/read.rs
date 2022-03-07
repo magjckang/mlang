@@ -1,7 +1,7 @@
 mod sugar;
 
 pub use sugar::SugarReader;
-use crate::{Op, intern};
+use crate::{Op, nil, cons, intern};
 use core::iter::Peekable;
 use core::str::{Chars, FromStr};
 
@@ -24,12 +24,12 @@ pub trait Reader<'a> {
 	}
 
 	fn read_list(&mut self, delimiter: char) -> Result<Op, Error> {
-		let mut head = Op::null();
+		let mut head = nil();
 		let mut tail = head;
 		loop {
 			match self.read_item() {
 				Ok(op) => {
-					let op = Op::pair(op, Op::null());
+					let op = cons(op, nil());
 					if head.is_null() {
 						head = op;
 					} else {
@@ -49,7 +49,7 @@ pub trait Reader<'a> {
 			} 
 		}
 		if head.is_null() {
-			head = Op::pair(Op::null(), Op::null());
+			head = cons(nil(), nil());
 		}
 		Ok(head)
 	}
