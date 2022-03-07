@@ -24,6 +24,12 @@
         font-family: monospace;
         font-size: 18px;
       }
+      .source {
+        cursor: pointer;
+      }
+      .source:hover {
+        color: rgb(74, 157, 183);
+      }
       .evaluated {
         font-style: italic;
       }
@@ -100,10 +106,12 @@ function run() {
     displayElem.removeChild(displayElem.lastChild);
   }
 
-  while (parseResults.length || evalResults.length) {
-    printLine(parseResults.shift(), false, false);
-    printLine(evalResults.shift(), true, false);
-    printLine(evalError, true, true);
+  for (let i = 0; i < parseResults.length || i < evalResults.length; i ++) {
+    printLine(parseResults[i], false, false);
+    printLine(evalResults[i], true, false);
+    if (i >= evalResults.length && evalError) {
+      printLine(evalError, true, true)
+    }
   }
 
   window.scrollTo({
@@ -116,12 +124,8 @@ function run() {
 function printLine(text, isEval, isError) {
   if (!text) return;
   const p = document.createElement("p");
-  if (isEval) {
-    p.classList.add(isEval ? "evaluated" : "source");
-    if (isError) {
-      p.classList.add("error");
-    }
-  }
+  p.classList.add(isEval ? "evaluated" : "source");
+  if (isError) p.classList.add("error");
   p.appendChild(document.createTextNode(text));
   displayElem.appendChild(p);
 }
@@ -135,6 +139,13 @@ inputElem.onkeydown = (e) => {
 buttonElem.onclick = () => {
   run();
 };
+
+window.onclick = (e) => {
+  let { target } = e;
+  if (target.classList.contains("source")) {
+    inputElem.value = `${inputElem.value}\n${target.textContent}`;
+  }
+}
 
 if (!inputElem.value) {
   inputElem.value =
