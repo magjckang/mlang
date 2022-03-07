@@ -2,6 +2,9 @@
 
 with a small Web Assembly GUI.
 
+**Caution:** Currently the implementation use a very naive way to manage memory,
+please do not use it to run long programs or it will crash.
+
 ## Run
 
 Prerequisites

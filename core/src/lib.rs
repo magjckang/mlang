@@ -302,7 +302,7 @@ impl From<&*const Object> for Op {
 }
 
 thread_local! {
-	static OBJECTS: RefCell<Vec<Object>> = RefCell::new(Vec::with_capacity(1000));
+	static OBJECTS: RefCell<Vec<Object>> = RefCell::new(Vec::with_capacity(10000));
 }
 
 static mut SYMBOLS: Op = Op::null();
