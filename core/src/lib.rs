@@ -333,7 +333,7 @@ pub fn init() {
 		global_var.set_tail_unchecked(GLOBALS)
 	}
 
-	let sub_routes: [(&str, PrimFun, bool); 14] = [
+	let sub_routes: [(&str, PrimFun, bool); 17] = [
 		("define", eval::subr_define, true),
 		("lambda", eval::subr_lambda, true),
 		("lambda_lambda", eval::subr_lambda_lambda, true),
@@ -342,6 +342,9 @@ pub fn init() {
 		("apply", eval::subr_apply, false),
 		("lambda_apply", eval::subr_apply, false),
 		("add", eval::subr_add, false),
+		("subtract", eval::subr_subtract, false),
+		("mul", eval::subr_mul, false),
+		("div", eval::subr_div, false),
 		("new_list", eval::subr_new_list, false),
 		("list_append", eval::subr_list_append, false),
 		("list_prepend", eval::subr_list_prepend, false),

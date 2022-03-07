@@ -229,22 +229,39 @@ pub fn subr_get_scope(args: Op, env: Op) -> Result<Op, Error> {
 }
 
 pub fn subr_add(args: Op, _env: Op) -> Result<Op, Error> {
-	if !args.is_pair() {
-		return Err(Error::TooFewArgs)
-	}
-	let lhs = args.get_head_unchecked();
-	let args = args.get_tail_unchecked();
-	if !args.is_pair() {
-		return Err(Error::TooFewArgs)
-	}
-	let rhs = args.get_head_unchecked();
-	if !lhs.is_long() {
-		return Err(Error::RequireLong(lhs))
-	}
-	if !rhs.is_long() {
-		return Err(Error::RequireLong(rhs))
-	}
+	check_args! {
+		args,
+		let lhs, is_long, RequireLong
+		let rhs, is_long, RequireLong
+	};
 	Ok(Op::long(lhs.get_long_unchecked() + rhs.get_long_unchecked()))
+}
+
+pub fn subr_subtract(args: Op, _env: Op) -> Result<Op, Error> {
+	check_args! {
+		args,
+		let lhs, is_long, RequireLong
+		let rhs, is_long, RequireLong
+	};
+	Ok(Op::long(lhs.get_long_unchecked() + rhs.get_long_unchecked()))
+}
+
+pub fn subr_mul(args: Op, _env: Op) -> Result<Op, Error> {
+	check_args! {
+		args,
+		let lhs, is_long, RequireLong
+		let rhs, is_long, RequireLong
+	};
+	Ok(Op::long(lhs.get_long_unchecked() * rhs.get_long_unchecked()))
+}
+
+pub fn subr_div(args: Op, _env: Op) -> Result<Op, Error> {
+	check_args! {
+		args,
+		let lhs, is_long, RequireLong
+		let rhs, is_long, RequireLong
+	};
+	Ok(Op::long(lhs.get_long_unchecked() / rhs.get_long_unchecked()))
 }
 
 pub fn subr_new_list(_args: Op, _env: Op) -> Result<Op, Error> {
